@@ -15,6 +15,7 @@ data = (
     raw_data.with_columns(
         wt_mu=pl.col("mu1"),
         cd55off_mu=pl.col("mu2"),
+        effect_size=pl.col("diff").neg(),
         score=pl.when(pl.col("diff") > 0)  # when mu1 - mu2 > 0 (i.e. mu1 > mu2)
         # mu1 (WT) is greater, score should be negative > 0)
         .then(pl.col("pval").log10())
@@ -64,6 +65,7 @@ data = (
         "wt_mu",
         "cd55off_mu",
         "score",
+        "effect_size",
     )
     .sort(by=["chr_order", "pos"])
     .with_row_index()
@@ -161,9 +163,7 @@ def manhattan(
         rotation=xtick_rotation,
     )
 
-    ax.set_ylabel(
-        ylabel if ylabel is not None else feature,
-    )
+    ax.set_ylabel(ylabel)
 
     if two_sided is not None:
         xpadding = 0.005
@@ -249,45 +249,65 @@ CD55_SURROUNDING_EXPR = (pl.col("chr") == CD55_CHR) & (
 )
 CD55_TSS_INDEX = data.filter(CD55_EXPR)["index"].min()
 
-yticks = np.arange(-160, 161, 40)
+score_yticks = np.arange(-160, 161, 40)
+effect_size_yticks = np.arange(-1, 1.1, 0.25)
 
 for filter_expr, use_xticks, base_filename, sample in [
     (pl.col("chr_order") < 25, True, "differential_methylation_all", False),
     (CD55_SURROUNDING_EXPR, False, "differential_methylation_cd55", False),
 ]:
-    df = data.sample(10_000) if sample else data
-    fig, ax = manhattan(
-        df.filter(filter_expr),
-        by="chr",
-        feature="score",
-        two_sided=("CD55off", "WT"),
-        highlight=None,
-        yticks=yticks,
-        yticklabels=abs(yticks),
-        ylabel=r"$\bf{Significance}$ $\bf{score}$"
-        + "\n"
-        + r"$-\log_{10}(p$-value$)$",
-        use_xticks=use_xticks,
-    )
-
-    ax.annotate(
-        "CD55" + (" [SUBSAMPLED DATA]" if sample else ""),
-        xy=(CD55_TSS_INDEX, 1.01),
-        xytext=(CD55_TSS_INDEX, 1.12),
-        ha="center",
-        va="bottom",
-        fontweight="bold",
-        xycoords=ax.get_xaxis_transform(),
-        textcoords=ax.get_xaxis_transform(),
-        arrowprops=dict(
-            facecolor="black",
-            headwidth=8,
-            headlength=8,
+    for (
+        feature,
+        ylabel,
+        yticks,
+        yticklabels,
+    ) in [
+        (
+            "score",
+            r"$\bf{Significance}$ $\bf{score}$"
+            + "\n"
+            + r"$-\log_{10}(p$-value$)$",
+            score_yticks,
+            abs(score_yticks),
         ),
-    )
+        # (
+        #     "effect_size",
+        #     r"$\bf{Effect}$ $\bf{size}$",
+        #     effect_size_yticks,
+        #     [round(yt, 2) for yt in effect_size_yticks],
+        # ),
+    ]:
+        df = data.sample(10_000) if sample else data
+        fig, ax = manhattan(
+            df.filter(filter_expr),
+            by="chr",
+            feature=feature,
+            two_sided=("CRISPRoff-eVLP treated", "untreated"),
+            highlight=None,
+            yticks=yticks,
+            yticklabels=yticklabels,
+            ylabel=ylabel,
+            use_xticks=use_xticks,
+        )
 
-    suffix = "-SUBSAMPLED" if sample else ""
+        ax.annotate(
+            "CD55" + (" [SUBSAMPLED DATA]" if sample else ""),
+            xy=(CD55_TSS_INDEX, 1.01),
+            xytext=(CD55_TSS_INDEX, 1.12),
+            ha="center",
+            va="bottom",
+            fontweight="bold",
+            xycoords=ax.get_xaxis_transform(),
+            textcoords=ax.get_xaxis_transform(),
+            arrowprops=dict(
+                facecolor="black",
+                headwidth=8,
+                headlength=8,
+            ),
+        )
 
-    fig.tight_layout()
-    fig.savefig(f"graphs/{base_filename}{suffix}.png", dpi=300)
-    plt.close(fig)
+        suffix = "-SUBSAMPLED" if sample else ""
+
+        fig.tight_layout()
+        fig.savefig(f"graphs/{base_filename}-{feature}{suffix}.png", dpi=300)
+        plt.close(fig)
