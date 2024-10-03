@@ -1,0 +1,4 @@
+bismark (http://felixkrueger.github.io/Bismark/)
+bowtie2 (https://bowtie-bio.sourceforge.net/bowtie2/index.shtml)
+fastqc (https://www.bioinformatics.babraham.ac.uk/projects/fastqc/)
+samtools (http://www.htslib.org/)
