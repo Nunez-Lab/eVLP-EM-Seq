@@ -1,0 +1,20 @@
+fastqc:
+    https://www.bioinformatics.babraham.ac.uk/projects/fastqc/
+
+bowtie2:
+    https://bowtie-bio.sourceforge.net/bowtie2/index.shtml
+
+samtools:
+    http://www.htslib.org/
+
+bismark:
+    http://felixkrueger.github.io/Bismark/
+
+bsseq:
+    https://www.bioconductor.org/packages/release/bioc/html/bsseq.html
+
+DSS:
+    https://www.bioconductor.org/packages/release/bioc/html/DSS.html
+
+uv:
+    https://docs.astral.sh/uv/

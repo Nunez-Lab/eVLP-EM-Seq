@@ -1,26 +1,32 @@
 # %% Import
 
+import sys
+
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
 import numpy as np
 import polars as pl
 
+# %% Get command line arguments
+
+INPUT = sys.argv[1]
+OUTPUT = sys.argv[2]
+
 # %% Load data
 
-raw_data = pl.read_csv("data/dss_output_OT.csv")
+raw_data = pl.read_csv(INPUT)
 
 # %% Process data
+# Important: Assumes mu1 is CD55off, mu2 is WT
 
 data = (
     raw_data.with_columns(
-        wt_mu=pl.col("mu1"),
-        cd55off_mu=pl.col("mu2"),
+        cd55off_mu=pl.col("mu1"),
+        wt_mu=pl.col("mu2"),
         effect_size=pl.col("diff").neg(),
-        score=pl.when(pl.col("diff") > 0)  # when mu1 - mu2 > 0 (i.e. mu1 > mu2)
-        # mu1 (WT) is greater, score should be negative > 0)
-        .then(pl.col("pval").log10())
-        # mu2 (CD55off) is greater, score should be positive
-        .otherwise(pl.col("pval").log10().neg()),
+        score=pl.when(pl.col("mu1") > pl.col("mu2"))
+        .then(pl.col("pval").log10().neg())
+        .otherwise(pl.col("pval").log10()),
         chr=pl.when(pl.col("chr") == "phage_lambda")
         .then(pl.col("chr"))
         .when(pl.col("chr") == "plasmid_puc19c")
@@ -62,8 +68,8 @@ data = (
         "short_chr",
         "chr_order",
         "pos",
-        "wt_mu",
         "cd55off_mu",
+        "wt_mu",
         "score",
         "effect_size",
     )
@@ -226,7 +232,7 @@ for condition in ["wt", "cd55off"]:
         xtick_rotation=0,
     )
 
-    fig.savefig(f"graphs/controls_{condition}.png", dpi=300)
+    fig.savefig(f"{OUTPUT}/controls_{condition}.png", dpi=300)
     plt.close(fig)
 
 # %% Plot differential methylation
@@ -309,5 +315,5 @@ for filter_expr, use_xticks, base_filename, sample in [
         suffix = "-SUBSAMPLED" if sample else ""
 
         fig.tight_layout()
-        fig.savefig(f"graphs/{base_filename}-{feature}{suffix}.png", dpi=300)
+        fig.savefig(f"{OUTPUT}/{base_filename}-{feature}{suffix}.png", dpi=300)
         plt.close(fig)
