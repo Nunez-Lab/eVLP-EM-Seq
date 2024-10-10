@@ -1,6 +1,9 @@
 fastqc:
     https://www.bioinformatics.babraham.ac.uk/projects/fastqc/
 
+cutadapt:
+    https://cutadapt.readthedocs.io/en/stable/
+
 bowtie2:
     https://bowtie-bio.sourceforge.net/bowtie2/index.shtml
 
