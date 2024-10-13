@@ -1,2 +1,4 @@
 data/
 graphs/
+
+__pycache__/

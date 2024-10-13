@@ -158,6 +158,8 @@ mkdir -p data/dss-output/
 # %% Plot results
 
 mkdir -p graphs
-uv run scripts/plot.py \
+uv \
+    --project scripts/ \
+    run scripts/plot.py \
     data/dss-output/dss.csv \
     graphs/
