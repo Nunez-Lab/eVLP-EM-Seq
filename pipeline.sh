@@ -142,7 +142,9 @@ for name in \
     "WT_JPL_S3" \
     "CD55off_JPL_S4"
 do
-    ./scripts/combine_dss.py \
+    uv \
+        --project scripts/ \
+        run ./scripts/combine_dss.py \
         data/methylation-dss-separate/${name}_OT.txt \
         data/methylation-dss-separate/${name}_OB.txt \
         data/methylation-dss-combined/${name}.txt &
