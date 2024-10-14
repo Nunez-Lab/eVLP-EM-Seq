@@ -3,7 +3,7 @@
 library(DSS)
 require(bsseq)
 
-input_path = file.path("data", "methylation-dss-combined")
+input_path = file.path("data", "methylation-dss-combined-filtered")
 
 # ORIGINAL TOP STRAND
 
@@ -31,7 +31,8 @@ dmlTest = DMLtest(
     BSobj,
     group1=c("C2", "C4"),
     group2=c("W1", "W3"),
-    smoothing=TRUE
+    smoothing=TRUE,
+    ncores=6
 )
 
 print("Writing CSV...")

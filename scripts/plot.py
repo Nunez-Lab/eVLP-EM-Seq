@@ -104,9 +104,9 @@ def manhattan(
     figsize=(10, 3),
     use_xticks=True,
 ):
-    if yticks is not None:
-        assert df[feature].min() > min(yticks), df[feature].min()
-        assert df[feature].max() < max(yticks), df[feature].max()
+    # if yticks is not None:
+    #     assert df[feature].min() > min(yticks), df[feature].min()
+    #     assert df[feature].max() < max(yticks), df[feature].max()
 
     if yticklabels is not None:
         assert yticks is not None

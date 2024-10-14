@@ -152,12 +152,23 @@ done
 
 wait
 
-# %% Call DSS to perform differential methylation analysis
+# % % Filter low read counts
+
+mkdir -p data/methylation-dss-combined-filtered
+
+uv \
+    --project scripts/ \
+    run ./scripts/filter_dss.py \
+    10 \
+    data/methylation-dss-combined \
+    data/methylation-dss-combined-filtered
+
+# % % Call DSS to perform differential methylation analysis
 
 mkdir -p data/dss-output/
 ./scripts/dss.r
 
-# %% Plot results
+# % % Plot results
 
 mkdir -p graphs
 uv \

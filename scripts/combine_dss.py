@@ -30,7 +30,6 @@ if __name__ == "__main__":
         pl.concat([top, bot.with_columns(pos=pl.col("pos") - 1)])
         .group_by(["chr", "pos"])
         .sum()
-        .sort(by=["chr", "pos"])
         .collect()
     )
 
