@@ -23,7 +23,7 @@ data = (
     raw_data.with_columns(
         cd55off_mu=pl.col("mu1"),
         wt_mu=pl.col("mu2"),
-        effect_size=pl.col("diff").neg(),
+        effect_size=pl.col("diff"),
         score=pl.when(pl.col("mu1") > pl.col("mu2"))
         .then(pl.col("pval").log10().neg())
         .otherwise(pl.col("pval").log10()),
@@ -75,6 +75,16 @@ data = (
     )
     .sort(by=["chr_order", "pos"])
     .with_row_index()
+)
+
+# %% Highest and lowest summary
+
+summary_cols = ["chr", "pos", "cd55off_mu", "wt_mu", "score", "effect_size"]
+data[summary_cols].top_k(100, by="score").write_csv(
+    f"{OUTPUT}/cd55off_top_hits.tsv", separator="\t"
+)
+data[summary_cols].top_k(100, by="score", reverse=True).write_csv(
+    f"{OUTPUT}/wt_top_hits.tsv", separator="\t"
 )
 
 # %% Manhattan plot helper
@@ -235,9 +245,10 @@ for condition in ["wt", "cd55off"]:
     fig.savefig(f"{OUTPUT}/controls_{condition}.png", dpi=300)
     plt.close(fig)
 
-# %% Plot differential methylation
+# %% Define important genomic loci
 
 # Source: https://www.uniprot.org/uniprotkb/P08174/genomic-coordinates
+
 CD55_CHR = "chr1"
 CD55_POS = (207_321_766, 207_359_607)
 
@@ -255,12 +266,34 @@ CD55_SURROUNDING_EXPR = (pl.col("chr") == CD55_CHR) & (
 )
 CD55_TSS_INDEX = data.filter(CD55_EXPR)["index"].min()
 
+# Source: https://www.uniprot.org/uniprotkb/O43296/genomic-coordinates
+
+ZN264_CHR = "chr19"
+ZN264_POS = (57_191_914, 57_212_978)
+
+ZN264_EXPR = (pl.col("chr") == ZN264_CHR) & (
+    pl.col("pos").is_between(
+        ZN264_POS[0],
+        ZN264_POS[1],
+    )
+)
+ZN264_SURROUNDING_EXPR = (pl.col("chr") == ZN264_CHR) & (
+    pl.col("pos").is_between(
+        ZN264_POS[0] - 10_000,
+        ZN264_POS[1] + 10_000,
+    )
+)
+ZN264_TSS_INDEX = data.filter(ZN264_EXPR)["index"].min()
+
+# %% Plot differential methylation
+
 score_yticks = np.arange(-160, 161, 40)
 effect_size_yticks = np.arange(-1, 1.1, 0.25)
 
 for filter_expr, use_xticks, base_filename, sample in [
     (pl.col("chr_order") < 25, True, "differential_methylation_all", False),
     (CD55_SURROUNDING_EXPR, False, "differential_methylation_cd55", False),
+    (ZN264_SURROUNDING_EXPR, False, "differential_methylation_zn264", False),
 ]:
     for (
         feature,
@@ -276,12 +309,12 @@ for filter_expr, use_xticks, base_filename, sample in [
             score_yticks,
             abs(score_yticks),
         ),
-        # (
-        #     "effect_size",
-        #     r"$\bf{Effect}$ $\bf{size}$",
-        #     effect_size_yticks,
-        #     [round(yt, 2) for yt in effect_size_yticks],
-        # ),
+        (
+            "effect_size",
+            r"$\bf{Effect}$ $\bf{size}$",
+            effect_size_yticks,
+            [round(yt, 2) for yt in effect_size_yticks],
+        ),
     ]:
         df = data.sample(10_000) if sample else data
         fig, ax = manhattan(
@@ -296,10 +329,19 @@ for filter_expr, use_xticks, base_filename, sample in [
             use_xticks=use_xticks,
         )
 
+        if "zn264" in base_filename:
+            text = "ZN264"
+            xy = (ZN264_TSS_INDEX, 1.01)
+            xytext = (ZN264_TSS_INDEX, 1.12)
+        else:
+            text = "CD55"
+            xy = (CD55_TSS_INDEX, 1.01)
+            xytext = (CD55_TSS_INDEX, 1.12)
+
         ax.annotate(
-            "CD55" + (" [SUBSAMPLED DATA]" if sample else ""),
-            xy=(CD55_TSS_INDEX, 1.01),
-            xytext=(CD55_TSS_INDEX, 1.12),
+            text + (" [SUBSAMPLED DATA]" if sample else ""),
+            xy=xy,
+            xytext=xytext,
             ha="center",
             va="bottom",
             fontweight="bold",
