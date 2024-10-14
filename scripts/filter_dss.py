@@ -37,7 +37,9 @@ if __name__ == "__main__":
     )
 
     for filename in dfs:
-        df = dfs[filename].join(all, on=["chr", "pos"])[
-            ["chr", "pos", "N", "X"]
-        ]
-        df.write_csv(f"{OUTPUT_PATH}/{filename}")
+        df = (
+            dfs[filename]
+            .join(all, on=["chr", "pos"])[["chr", "pos", "N", "X"]]
+            .sort(by=["chr", "pos"])
+        )
+        df.write_csv(f"{OUTPUT_PATH}/{filename}", separator="\t")
