@@ -247,6 +247,17 @@ for condition in ["wt", "cd55off"]:
 
 # %% Define important genomic loci
 
+CD55_GUIDE_CHR = "chr1"
+CD55_GUIDE_POS = (207_321_714, 207_321_735)
+CD55_GUIDE_EXPR = (pl.col("chr") == CD55_GUIDE_CHR) & (
+    pl.col("pos").is_between(
+        CD55_GUIDE_POS[0],
+        CD55_GUIDE_POS[1],
+    )
+)
+CD55_GUIDE_START_INDEX = data.filter(CD55_GUIDE_EXPR)["index"].min()
+CD55_GUIDE_END_INDEX = data.filter(CD55_GUIDE_EXPR)["index"].max()
+
 # Source: https://www.uniprot.org/uniprotkb/P08174/genomic-coordinates
 
 CD55_CHR = "chr1"
@@ -289,11 +300,13 @@ ZN264_TSS_INDEX = data.filter(ZN264_EXPR)["index"].min()
 
 score_yticks = np.arange(-160, 161, 40)
 effect_size_yticks = np.arange(-1, 1.1, 0.25)
+sample = False
 
-for filter_expr, use_xticks, base_filename, sample in [
-    (pl.col("chr_order") < 25, True, "differential_methylation_all", False),
-    (CD55_SURROUNDING_EXPR, False, "differential_methylation_cd55", False),
-    (ZN264_SURROUNDING_EXPR, False, "differential_methylation_zn264", False),
+for filter_expr, use_xticks, base_filename in [
+    (pl.col("chr_order") < 25, True, "differential_methylation_all"),
+    (CD55_SURROUNDING_EXPR, False, "differential_methylation_cd55"),
+    (CD55_SURROUNDING_EXPR, False, "differential_methylation_cd55_sgRNA"),
+    (ZN264_SURROUNDING_EXPR, False, "differential_methylation_zn264"),
 ]:
     for (
         feature,
@@ -317,6 +330,7 @@ for filter_expr, use_xticks, base_filename, sample in [
         ),
     ]:
         df = data.sample(10_000) if sample else data
+
         fig, ax = manhattan(
             df.filter(filter_expr),
             by="chr",
@@ -353,6 +367,23 @@ for filter_expr, use_xticks, base_filename, sample in [
                 headlength=8,
             ),
         )
+
+        if "cd55_sgRNA" in base_filename:
+            ax.hlines(
+                [max(yticks)],
+                [CD55_GUIDE_START_INDEX],
+                [CD55_GUIDE_END_INDEX],
+                color="red",
+                linewidth=3,
+                label="sgRNA",
+            )
+            ax.text(
+                CD55_GUIDE_START_INDEX,
+                max(yticks) - 20,
+                "sgRNA",
+                color="red",
+            )
+            ax.set_yticks(yticks)
 
         suffix = "-SUBSAMPLED" if sample else ""
 
