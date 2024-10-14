@@ -152,7 +152,7 @@ done
 
 wait
 
-# % % Filter low read counts
+# %% Filter low read counts
 
 mkdir -p data/methylation-dss-combined-filtered
 
@@ -163,12 +163,12 @@ uv \
     data/methylation-dss-combined \
     data/methylation-dss-combined-filtered
 
-# % % Call DSS to perform differential methylation analysis
+# %% Call DSS to perform differential methylation analysis
 
 mkdir -p data/dss-output/
 ./scripts/dss.r
 
-# % % Plot results
+# %% Plot results
 
 mkdir -p graphs
 uv \
