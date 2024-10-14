@@ -104,9 +104,9 @@ def manhattan(
     figsize=(10, 3),
     use_xticks=True,
 ):
-    # if yticks is not None:
-    #     assert df[feature].min() > min(yticks), df[feature].min()
-    #     assert df[feature].max() < max(yticks), df[feature].max()
+    if yticks is not None:
+        assert df[feature].min() > min(yticks), df[feature].min()
+        assert df[feature].max() < max(yticks), df[feature].max()
 
     if yticklabels is not None:
         assert yticks is not None
@@ -255,7 +255,7 @@ CD55_SURROUNDING_EXPR = (pl.col("chr") == CD55_CHR) & (
 )
 CD55_TSS_INDEX = data.filter(CD55_EXPR)["index"].min()
 
-score_yticks = np.arange(-280, 281, 40)
+score_yticks = np.arange(-160, 161, 40)
 effect_size_yticks = np.arange(-1, 1.1, 0.25)
 
 for filter_expr, use_xticks, base_filename, sample in [
