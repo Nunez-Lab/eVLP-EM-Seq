@@ -163,9 +163,18 @@ uv \
     data/methylation-dss-combined \
     data/methylation-dss-combined-filtered
 
+# %% Compute global methylation information
+
+mkdir -p data/global-methylation-info
+uv \
+    --project scripts/ \
+    run ./scripts/global_methylation_info.py \
+    data/methylation-dss-combined-filtered \
+    > data/global-methylation-info/info.tsv
+
 # %% Call DSS to perform differential methylation analysis
 
-mkdir -p data/dss-output/
+mkdir -p data/dss-output
 ./scripts/dss.r
 
 # %% Plot results
@@ -174,5 +183,6 @@ mkdir -p output
 uv \
     --project scripts/ \
     run scripts/plot.py \
+    data/global-methylation-info/info.tsv \
     data/dss-output/dss.csv \
     output/

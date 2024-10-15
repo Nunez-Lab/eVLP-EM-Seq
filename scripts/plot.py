@@ -9,12 +9,14 @@ import polars as pl
 
 # %% Get command line arguments
 
-INPUT = sys.argv[1]
-OUTPUT = sys.argv[2]
+GLOBAL_METHYLATION_INFO_PATH = sys.argv[1]
+DSS_RESULTS_PATH = sys.argv[2]
+OUTPUT = sys.argv[3]
 
 # %% Load data
 
-raw_data = pl.read_csv(INPUT)
+raw_methyl = pl.read_csv(GLOBAL_METHYLATION_INFO_PATH, separator="\t")
+raw_data = pl.read_csv(DSS_RESULTS_PATH)
 
 # %% Process data
 # Important: Assumes mu1 is CD55off, mu2 is WT
@@ -158,16 +160,19 @@ def manhattan(
             c=g["color"],
         )
 
-        ax.axvline(
-            lo,
-            color="lightgray",
-            linewidth=0.5,
-        )
+        if use_xticks:
+            ax.axvline(
+                lo,
+                color="lightgray",
+                linewidth=0.5,
+            )
 
     left = df[index].min()
     right = df[index].max()
 
-    ax.axvline(right, color="lightgray", linewidth=0.5)
+    if use_xticks:
+        ax.axvline(right, color="lightgray", linewidth=0.5)
+
     ax.set_xlim(left, right)
 
     if xlabel:
@@ -390,3 +395,141 @@ for filter_expr, use_xticks, base_filename in [
         fig.tight_layout()
         fig.savefig(f"{OUTPUT}/{base_filename}-{feature}{suffix}.png", dpi=300)
         plt.close(fig)
+
+# %% Genomic position plotter
+
+fig, ax = manhattan(
+    data.filter(CD55_SURROUNDING_EXPR),
+    by="chr",
+    feature="score",
+    index="pos",
+    two_sided=("CRISPRoff-eVLP treated", "untreated"),
+    highlight=None,
+    yticks=score_yticks,
+    yticklabels=abs(score_yticks),
+    ylabel=r"$\bf{Significance}$ $\bf{score}$",
+    use_xticks=False,
+    figsize=(15, 3),
+)
+
+coords = np.arange(
+    CD55_POS[0] - 10_000,
+    CD55_POS[1] + 10_000,
+    1_000,
+)
+ax.set_xticks(
+    coords,
+    labels=coords - CD55_POS[0],
+    rotation=90,
+)
+ax.set_xlabel("Distance from CD55 TSS")
+fig.tight_layout()
+fig.savefig(f"{OUTPUT}/test1.pdf")
+
+CLOSE_CD55_SURROUNDING_EXPR = (pl.col("chr") == CD55_CHR) & (
+    pl.col("pos").is_between(
+        CD55_POS[0] - 2_000,
+        CD55_POS[0] + 2_000,
+    )
+)
+
+fig, ax = manhattan(
+    data.filter(CLOSE_CD55_SURROUNDING_EXPR),
+    by="chr",
+    feature="score",
+    index="pos",
+    two_sided=("CRISPRoff-eVLP treated", "untreated"),
+    highlight=None,
+    yticks=score_yticks,
+    yticklabels=abs(score_yticks),
+    ylabel=r"$\bf{Significance}$ $\bf{score}$",
+    use_xticks=False,
+    figsize=(15, 3),
+)
+
+coords = np.arange(
+    CD55_POS[0] - 2_000,
+    CD55_POS[0] + 2_000,
+    100,
+)
+ax.set_xticks(
+    coords,
+    labels=coords - CD55_POS[0],
+    rotation=90,
+)
+ax.set_xlabel("Distance from CD55 TSS")
+
+CPG_ISLAND_CHR = "chr1"
+CPG_ISLAND_POS = (207_321_199, 207_322_019)
+
+ax.hlines(
+    [max(score_yticks) + 3],
+    [CPG_ISLAND_POS[0]],
+    [CPG_ISLAND_POS[1]],
+    color="red",
+    linewidth=3,
+)
+ax.text(
+    CPG_ISLAND_POS[0],
+    max(score_yticks) - 12,
+    "Annotated CGI",
+    color="red",
+)
+
+fig.tight_layout()
+fig.savefig(f"{OUTPUT}/test1.pdf")
+plt.close(fig)
+
+# %% Global methylation information
+
+CONDITIONS = ["Untreated", "Treated\n(CRISPRoff\neVLP)"]
+CONDITION_COLORS = [BLUE, RED]
+
+methyl = (
+    raw_methyl.with_columns(
+        condition=pl.when(pl.col("filename").str.contains("WT_"))
+        .then(0)
+        .when(pl.col("filename").str.contains("CD55off_"))
+        .then(1)
+        .otherwise(9999),
+        percent=pl.col("X") / pl.col("N"),
+    )
+    .group_by("condition")
+    .map_groups(lambda df: df.with_row_index(name="replicate"))
+)
+
+methyl_agg = methyl[["condition", "percent"]].group_by("condition").mean()
+
+fig, ax = plt.subplots(1, 1, figsize=(2.5, 3))
+
+b = ax.bar(
+    methyl_agg["condition"],
+    methyl_agg["percent"],
+    color=[CONDITION_COLORS[i] for i in methyl_agg["condition"]],
+)
+
+ax.bar_label(
+    b,
+    fmt=lambda x: str(round(x * 100)) + "%",
+    padding=7,
+    color="gray",
+)
+
+ax.scatter(
+    methyl["condition"] + (methyl["replicate"] - 0.5) / 3,
+    methyl["percent"],
+    color="black",
+)
+
+ax.set_xlim(-0.5, 1.5)
+ax.set_xticks([0, 1], labels=CONDITIONS)
+
+ax.set_ylim(0, 1)
+ax.set_ylabel("Average CpG methylation")
+ax.yaxis.set_major_formatter(mtick.PercentFormatter(1.0))
+
+ax.spines[["top", "right"]].set_visible(False)
+
+fig.tight_layout()
+fig.savefig(f"{OUTPUT}/global_methylation.pdf")
+plt.close(fig)
