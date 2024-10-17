@@ -9,13 +9,18 @@ import polars as pl
 
 # %% Get command line arguments
 
-GLOBAL_METHYLATION_INFO_PATH = sys.argv[1]
+sys.argv = [sys.argv[0]]
+sys.argv.append("../data/average-methylation-info/info.tsv")
+sys.argv.append("../data/dss-output/dss.csv")
+sys.argv.append("../output")
+
+AVERAGE_METHYLATION_INFO_PATH = sys.argv[1]
 DSS_RESULTS_PATH = sys.argv[2]
 OUTPUT = sys.argv[3]
 
 # %% Load data
 
-raw_methyl = pl.read_csv(GLOBAL_METHYLATION_INFO_PATH, separator="\t")
+raw_methyl = pl.read_csv(AVERAGE_METHYLATION_INFO_PATH, separator="\t")
 raw_data = pl.read_csv(DSS_RESULTS_PATH)
 
 # %% Process data
@@ -91,9 +96,11 @@ data[summary_cols].top_k(100, by="score", reverse=True).write_csv(
 
 # %% Manhattan plot helper
 
+# Source: https://personal.sron.nl/~pault/
 BLUE = "#4477AA"
-RED = "#AA3377"
+PURPLE = "#AA3377"
 GREEN = "#228833"
+RED = "#EE6677"
 
 
 def manhattan(
@@ -105,7 +112,7 @@ def manhattan(
     highlight,
     index="index",
     main_color=BLUE,
-    secondary_color=RED,
+    secondary_color=PURPLE,
     highlight_color=GREEN,
     yticks=None,
     yticklabels=None,
@@ -223,6 +230,8 @@ def manhattan(
     if yaxis_formatter is not None:
         ax.yaxis.set_major_formatter(yaxis_formatter)
 
+    ax.spines[["top", "right"]].set_visible(False)
+
     fig.tight_layout()
 
     return fig, ax
@@ -240,28 +249,17 @@ for condition in ["wt", "cd55off"]:
         feature=feature,
         two_sided=None,
         highlight=pl.col(feature) > 0.5,
-        highlight_color=RED,
+        highlight_color=PURPLE,
         yticks=np.arange(0, 1.1, 0.2),
         ylabel=r"$\bf{\%}$ $\bf{reads}$ $\bf{methylated}$",
         yaxis_formatter=mtick.PercentFormatter(1.0),
         xtick_rotation=0,
     )
 
-    fig.savefig(f"{OUTPUT}/controls_{condition}.png", dpi=300)
+    fig.savefig(f"{OUTPUT}/controls_{condition}.svg")
     plt.close(fig)
 
 # %% Define important genomic loci
-
-CD55_GUIDE_CHR = "chr1"
-CD55_GUIDE_POS = (207_321_714, 207_321_735)
-CD55_GUIDE_EXPR = (pl.col("chr") == CD55_GUIDE_CHR) & (
-    pl.col("pos").is_between(
-        CD55_GUIDE_POS[0],
-        CD55_GUIDE_POS[1],
-    )
-)
-CD55_GUIDE_START_INDEX = data.filter(CD55_GUIDE_EXPR)["index"].min()
-CD55_GUIDE_END_INDEX = data.filter(CD55_GUIDE_EXPR)["index"].max()
 
 # Source: https://www.uniprot.org/uniprotkb/P08174/genomic-coordinates
 
@@ -301,16 +299,17 @@ ZN264_SURROUNDING_EXPR = (pl.col("chr") == ZN264_CHR) & (
 )
 ZN264_TSS_INDEX = data.filter(ZN264_EXPR)["index"].min()
 
-# %% Plot differential methylation
+# %% Differential methylation plot parameters
 
-score_yticks = np.arange(-160, 161, 40)
-effect_size_yticks = np.arange(-1, 1.1, 0.25)
-sample = False
+SCORE_YTICKS = np.arange(-160, 161, 40)
+EFFECT_SIZE_YTICKS = np.arange(-1, 1.1, 0.25)
+SAMPLE = False
+
+# %% Plot differential methylation
 
 for filter_expr, use_xticks, base_filename in [
     (pl.col("chr_order") < 25, True, "differential_methylation_all"),
     (CD55_SURROUNDING_EXPR, False, "differential_methylation_cd55"),
-    (CD55_SURROUNDING_EXPR, False, "differential_methylation_cd55_sgRNA"),
     (ZN264_SURROUNDING_EXPR, False, "differential_methylation_zn264"),
 ]:
     for (
@@ -324,17 +323,17 @@ for filter_expr, use_xticks, base_filename in [
             r"$\bf{Significance}$ $\bf{score}$"
             + "\n"
             + r"$-\log_{10}(p$-value$)$",
-            score_yticks,
-            abs(score_yticks),
+            SCORE_YTICKS,
+            abs(SCORE_YTICKS),
         ),
         (
             "effect_size",
             r"$\bf{Effect}$ $\bf{size}$",
-            effect_size_yticks,
-            [round(yt, 2) for yt in effect_size_yticks],
+            EFFECT_SIZE_YTICKS,
+            [round(yt, 2) for yt in EFFECT_SIZE_YTICKS],
         ),
     ]:
-        df = data.sample(10_000) if sample else data
+        df = data.sample(10_000) if SAMPLE else data
 
         fig, ax = manhattan(
             df.filter(filter_expr),
@@ -358,7 +357,7 @@ for filter_expr, use_xticks, base_filename in [
             xytext = (CD55_TSS_INDEX, 1.12)
 
         ax.annotate(
-            text + (" [SUBSAMPLED DATA]" if sample else ""),
+            text + (" [SUBSAMPLED DATA]" if SAMPLE else ""),
             xy=xy,
             xytext=xytext,
             ha="center",
@@ -373,117 +372,193 @@ for filter_expr, use_xticks, base_filename in [
             ),
         )
 
-        if "cd55_sgRNA" in base_filename:
-            ax.hlines(
-                [max(yticks)],
-                [CD55_GUIDE_START_INDEX],
-                [CD55_GUIDE_END_INDEX],
-                color="red",
-                linewidth=3,
-                label="sgRNA",
-            )
-            ax.text(
-                CD55_GUIDE_START_INDEX,
-                max(yticks) - 20,
-                "sgRNA",
-                color="red",
-            )
-            ax.set_yticks(yticks)
-
-        suffix = "-SUBSAMPLED" if sample else ""
+        suffix = "-SUBSAMPLED" if SAMPLE else ""
 
         fig.tight_layout()
         fig.savefig(f"{OUTPUT}/{base_filename}-{feature}{suffix}.png", dpi=300)
         plt.close(fig)
 
-# %% Genomic position plotter
+# %% Important loci for genomic (zoomed) position plot
 
-fig, ax = manhattan(
-    data.filter(CD55_SURROUNDING_EXPR),
-    by="chr",
-    feature="score",
-    index="pos",
-    two_sided=("CRISPRoff-eVLP treated", "untreated"),
-    highlight=None,
-    yticks=score_yticks,
-    yticklabels=abs(score_yticks),
-    ylabel=r"$\bf{Significance}$ $\bf{score}$",
-    use_xticks=False,
-    figsize=(15, 3),
-)
+CD55_TSS_ZOOM_OFFSET = 2_000
 
-coords = np.arange(
-    CD55_POS[0] - 10_000,
-    CD55_POS[1] + 10_000,
-    1_000,
-)
-ax.set_xticks(
-    coords,
-    labels=coords - CD55_POS[0],
-    rotation=90,
-)
-ax.set_xlabel("Distance from CD55 TSS")
-fig.tight_layout()
-fig.savefig(f"{OUTPUT}/test1.pdf")
-
-CLOSE_CD55_SURROUNDING_EXPR = (pl.col("chr") == CD55_CHR) & (
+CD55_ZOOMED_EXPR = (pl.col("chr") == CD55_CHR) & (
     pl.col("pos").is_between(
-        CD55_POS[0] - 2_000,
-        CD55_POS[0] + 2_000,
+        CD55_POS[0] - CD55_TSS_ZOOM_OFFSET,
+        CD55_POS[0] + CD55_TSS_ZOOM_OFFSET,
     )
 )
 
+CD55_ZOOM_COORDS = np.arange(
+    CD55_POS[0] - CD55_TSS_ZOOM_OFFSET,
+    CD55_POS[0] + CD55_TSS_ZOOM_OFFSET + 1,
+    200,
+)
+
+# Source: UCSC Genome Browser
+CPG_ISLAND_CHR = "chr1"
+CPG_ISLAND_POS = (207_321_199, 207_322_019)
+
+CD55_GUIDE_CHR = "chr1"
+CD55_GUIDE_POS = (207_321_714, 207_321_735)
+
+# %% Make zoomed plot v1
+
 fig, ax = manhattan(
-    data.filter(CLOSE_CD55_SURROUNDING_EXPR),
+    data.filter(CD55_ZOOMED_EXPR),
     by="chr",
     feature="score",
     index="pos",
     two_sided=("CRISPRoff-eVLP treated", "untreated"),
     highlight=None,
-    yticks=score_yticks,
-    yticklabels=abs(score_yticks),
-    ylabel=r"$\bf{Significance}$ $\bf{score}$",
+    yticks=SCORE_YTICKS,
+    yticklabels=abs(SCORE_YTICKS),
+    ylabel=r"$\bf{Significance}$ $\bf{score}$"
+    + "\n"
+    + r"$-\log_{10}(p$-value$)$",
     use_xticks=False,
-    figsize=(15, 3),
+    figsize=(6, 3),
 )
 
-coords = np.arange(
-    CD55_POS[0] - 2_000,
-    CD55_POS[0] + 2_000,
-    100,
-)
 ax.set_xticks(
-    coords,
-    labels=coords - CD55_POS[0],
+    CD55_ZOOM_COORDS,
+    labels=CD55_ZOOM_COORDS - CD55_POS[0],
     rotation=90,
 )
-ax.set_xlabel("Distance from CD55 TSS")
 
-CPG_ISLAND_CHR = "chr1"
-CPG_ISLAND_POS = (207_321_199, 207_322_019)
+ax.set_xlabel("Distance from CD55 TSS", fontweight="bold")
+
+ax.set_yticks(SCORE_YTICKS)
+ax.set_ylim(SCORE_YTICKS[0], SCORE_YTICKS[-1])
 
 ax.hlines(
-    [max(score_yticks) + 3],
+    [-30],
     [CPG_ISLAND_POS[0]],
     [CPG_ISLAND_POS[1]],
-    color="red",
+    color=GREEN,
     linewidth=3,
 )
+
 ax.text(
     CPG_ISLAND_POS[0],
-    max(score_yticks) - 12,
+    -40,
     "Annotated CGI",
-    color="red",
+    color=GREEN,
+    ha="left",
+    va="top",
+)
+
+ax.hlines(
+    [-85],
+    [CD55_GUIDE_POS[0]],
+    [CD55_GUIDE_POS[1]],
+    color=RED,
+    linewidth=3,
+)
+
+ax.text(
+    CD55_GUIDE_POS[0],
+    -95,
+    "sgRNA",
+    color=RED,
+    ha="left",
+    va="top",
 )
 
 fig.tight_layout()
-fig.savefig(f"{OUTPUT}/test1.pdf")
+fig.savefig(f"{OUTPUT}/cd55_zoom_v1.svg")
 plt.close(fig)
 
-# %% Global methylation information
+# %% Make zoomed plot v2
+
+df = data.filter(CD55_ZOOMED_EXPR)
+
+fig, ax = plt.subplots(1, 1, figsize=(7, 3))
+
+ax.scatter(
+    df["pos"],
+    df["cd55off_mu"],
+    c=PURPLE,
+    marker="o",
+    s=7,
+    label="CRISPRoff-eVLP treated",
+)
+ax.scatter(
+    df["pos"],
+    df["wt_mu"],
+    c=BLUE,
+    marker="^",
+    s=7,
+    label="Untreated",
+)
+
+ax.set_xticks(
+    CD55_ZOOM_COORDS,
+    labels=CD55_ZOOM_COORDS - CD55_POS[0],
+    rotation=90,
+)
+ax.set_xlabel("Distance from CD55 TSS", fontweight="bold")
+
+ax.set_yticks(np.arange(0, 1.01, 0.2))
+ax.set_ylim(0, 1)
+ax.set_ylabel("% Methylated reads", fontweight="bold")
+ax.yaxis.set_major_formatter(mtick.PercentFormatter(1.0))
+
+ax.hlines(
+    [0.95],
+    [CPG_ISLAND_POS[0]],
+    [CPG_ISLAND_POS[1]],
+    color=GREEN,
+    linewidth=3,
+)
+
+ax.text(
+    CPG_ISLAND_POS[0],
+    0.92,
+    "Annotated CGI",
+    color=GREEN,
+    ha="left",
+    va="top",
+)
+
+ax.hlines(
+    [0.80],
+    [CD55_GUIDE_POS[0]],
+    [CD55_GUIDE_POS[1]],
+    color=RED,
+    linewidth=3,
+)
+
+ax.text(
+    CD55_GUIDE_POS[0],
+    0.77,
+    "sgRNA",
+    color=RED,
+    ha="left",
+    va="top",
+)
+
+leg = ax.legend(
+    loc="lower right",
+    handletextpad=0,
+    labelcolor="linecolor",
+    prop=dict(weight="bold"),
+    borderpad=0.5,
+)
+
+leg.get_frame().set_facecolor("0.95")
+leg.get_frame().set_linewidth(0.0)
+
+ax.spines[["top", "right"]].set_visible(False)
+
+fig.tight_layout()
+fig.savefig(f"{OUTPUT}/cd55_zoom_v2.svg", dpi=300)
+plt.close(fig)
+
+# %% Average methylation information
 
 CONDITIONS = ["Untreated", "Treated\n(CRISPRoff\neVLP)"]
-CONDITION_COLORS = [BLUE, RED]
+CONDITION_COLORS = [BLUE, PURPLE]
 
 methyl = (
     raw_methyl.with_columns(
@@ -492,44 +567,54 @@ methyl = (
         .when(pl.col("filename").str.contains("CD55off_"))
         .then(1)
         .otherwise(9999),
+        region=pl.when(pl.col("region") == "global")
+        .then(pl.lit("Global Methylation"))
+        .when(pl.col("region") == "cd55_cgi")
+        .then(pl.lit("CD55 CGI Methylation"))
+        .otherwise(pl.lit("UNKNOWN REGION")),
         percent=pl.col("X") / pl.col("N"),
     )
-    .group_by("condition")
+    .group_by("region", "condition")
     .map_groups(lambda df: df.with_row_index(name="replicate"))
 )
 
-methyl_agg = methyl[["condition", "percent"]].group_by("condition").mean()
+for (region,), df in methyl.group_by("region"):
+    fig, ax = plt.subplots(1, 1, figsize=(2.5, 3))
 
-fig, ax = plt.subplots(1, 1, figsize=(2.5, 3))
+    agg = df[["condition", "percent"]].group_by("condition").mean()
+    b = ax.bar(
+        agg["condition"],
+        agg["percent"],
+        color=[CONDITION_COLORS[i] for i in agg["condition"]],
+    )
 
-b = ax.bar(
-    methyl_agg["condition"],
-    methyl_agg["percent"],
-    color=[CONDITION_COLORS[i] for i in methyl_agg["condition"]],
-)
+    ax.bar_label(
+        b,
+        fmt=lambda x: str(round(x * 100)) + "%",
+        padding=7,
+        color="gray",
+    )
 
-ax.bar_label(
-    b,
-    fmt=lambda x: str(round(x * 100)) + "%",
-    padding=7,
-    color="gray",
-)
+    ax.scatter(
+        df["condition"] + (df["replicate"] - 0.5) / 3,
+        df["percent"],
+        color="black",
+    )
 
-ax.scatter(
-    methyl["condition"] + (methyl["replicate"] - 0.5) / 3,
-    methyl["percent"],
-    color="black",
-)
+    ax.set_xlim(-0.5, 1.5)
+    ax.set_xticks([0, 1], labels=CONDITIONS)
 
-ax.set_xlim(-0.5, 1.5)
-ax.set_xticks([0, 1], labels=CONDITIONS)
+    ax.set_ylim(0, 1)
+    ax.set_ylabel("Average CpG methylation", fontweight="bold")
+    ax.yaxis.set_major_formatter(mtick.PercentFormatter(1.0))
 
-ax.set_ylim(0, 1)
-ax.set_ylabel("Average CpG methylation")
-ax.yaxis.set_major_formatter(mtick.PercentFormatter(1.0))
+    ax.spines[["top", "right"]].set_visible(False)
 
-ax.spines[["top", "right"]].set_visible(False)
+    ax.set_title(region, fontweight="bold", pad=12)
 
-fig.tight_layout()
-fig.savefig(f"{OUTPUT}/global_methylation.pdf")
-plt.close(fig)
+    fig.tight_layout()
+    fig.savefig(
+        f"{OUTPUT}/average_methylation-{region}.svg",
+        bbox_inches="tight",
+    )
+    plt.close(fig)
