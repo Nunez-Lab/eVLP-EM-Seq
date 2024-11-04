@@ -1,4 +1,5 @@
 data/
 output/
+rna-seq-correlation-data/
 
 __pycache__/

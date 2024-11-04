@@ -9,11 +9,6 @@ import polars as pl
 
 # %% Get command line arguments
 
-sys.argv = [sys.argv[0]]
-sys.argv.append("../data/average-methylation-info/info.tsv")
-sys.argv.append("../data/dss-output/dss.csv")
-sys.argv.append("../output")
-
 AVERAGE_METHYLATION_INFO_PATH = sys.argv[1]
 DSS_RESULTS_PATH = sys.argv[2]
 OUTPUT = sys.argv[3]
