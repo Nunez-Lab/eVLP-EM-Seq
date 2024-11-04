@@ -186,3 +186,14 @@ uv \
     data/average-methylation-info/info.tsv \
     data/dss-output/dss.csv \
     output/
+
+# %% Plot correlation with RNA-seq data
+
+uv \
+    --project scripts/ \
+    run scripts/correlate_methyl_rna.py \
+    data/dss-output/dss.csv \
+    rna-seq-correlation-data/deseq2_results_with_gene_names.csv \
+    rna-seq-correlation-data/MANE.GRCh38.v1.4.summary.txt \
+    rna-seq-correlation-data/chr_names.csv \
+    output/
