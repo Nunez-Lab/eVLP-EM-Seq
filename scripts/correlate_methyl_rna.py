@@ -43,36 +43,45 @@ methyl = (
         .when(pl.col("chr") == "chrM")
         .then(pl.lit("MT"))
         .otherwise(pl.col("chr").str.slice(3)),
+        fdr_methyl=pl.col("fdr"),
     )
     .join(raw_chr, on="chr")
     .select(
         "GRCh38_chr",
         "pos",
-        "fdr",
+        "fdr_methyl",
     )
 )
 
 rna = (
     raw_rna.filter(pl.col("padj") != "NA")
     .with_columns(
-        fdr=pl.col("padj").cast(pl.Float64),
+        fdr_rna=pl.col("padj").cast(pl.Float64),
         Ensembl_Gene=pl.col("Geneid"),
     )
     .select(
         "Ensembl_Gene",
-        "fdr",
+        "fdr_rna",
     )
 )
 
 mane = raw_mane.select(
-    "Ensembl_Gene", "symbol", "GRCh38_chr", "chr_start", "chr_end"
+    "Ensembl_Gene",
+    "symbol",
+    "GRCh38_chr",
+    "chr_start",
+    "chr_end",
 )
 
 # %% Combine data
 
-methyl_gene = methyl.join_where(
-    mane,
-    pl.col("GRCh38_chr") == pl.col("GRCh38_chr_right"),
-    pl.col("chr_start") <= pl.col("pos"),
-    pl.col("pos") <= pl.col("chr_end"),
+data = (
+    rna.join(mane, on="Ensembl_Gene")
+    .drop("Ensembl_Gene")
+    .join_where(
+        methyl,
+        pl.col("GRCh38_chr") == pl.col("GRCh38_chr_right"),
+        pl.col("chr_start") <= pl.col("pos"),
+        pl.col("pos") <= pl.col("chr_end"),
+    )
 )
